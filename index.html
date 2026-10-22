@@ -1,0 +1,1194 @@
+<!doctype html>
+<!--
+  ============================================================================
+  index.html — ВЕСЬ фронтенд сайта в одном файле (страница ученика + админка).
+
+  Файл состоит из трёх частей:
+    1. <head>   — служебная информация о странице
+    2. <style>  — CSS: как всё выглядит (цвета, отступы, шрифты)
+    3. <script> — JavaScript: как всё работает (кнопки, отправка, редактор кода)
+
+  Сайт — «одностраничный»: HTML почти пустой (<main id="app">), а весь интерфейс
+  JavaScript рисует сам внутри <main>. Какую «страницу» показать — решает адрес:
+      https://сайт/         → страница ученика
+      https://сайт/#/admin  → вход для админа
+  ============================================================================
+-->
+<html lang="ru"> <!-- lang="ru": язык страницы, нужен браузеру и поисковикам -->
+<head>
+<meta charset="UTF-8"> <!-- кодировка: без неё кириллица превратится в «кракозябры» -->
+<meta name="viewport" content="width=device-width, initial-scale=1"> <!-- чтобы на телефоне сайт не был мелким, а подстраивался под экран -->
+<meta name="robots" content="noindex, nofollow"> <!-- просим поисковики НЕ показывать этот сайт в выдаче -->
+<meta name="color-scheme" content="light"> <!-- сайт всегда светлый, даже если у человека включена тёмная тема -->
+<title>Сдача работы</title> <!-- название вкладки (потом JS заменит на заголовок из настроек) -->
+<style>
+/* ======================= CSS ======================= */
+
+/* :root — это «корень» страницы. Здесь мы задаём переменные (--имя), чтобы цвета и шрифты
+   менять в одном месте. Использовать переменную можно так: var(--имя) */
+:root {
+  --bg: #f3ece0;            /* цвет фона всей страницы (бежевый) */
+  --paper: #fffdf8;         /* цвет «листа бумаги» посередине (почти белый, тёплый) */
+  --code-bg: #fbf7ef;       /* цвет фона поля с кодом */
+  --text: #2a2520;          /* основной цвет текста (тёмно-коричневый) */
+  --muted: #8a7f70;         /* приглушённый серо-бежевый для подписей и подсказок */
+  --line: #ece2d1;          /* цвет тонких разделительных линий */
+  --line-strong: #dccfb8;   /* цвет линий поярче (рамки полей) */
+  --ink: #2a2520;           /* «чернила» — тёмный цвет (сейчас почти не используется) */
+  --ink-text: #fffdf8;      /* светлый цвет для текста на тёмном (сейчас почти не используется) */
+  --accent: #b4623c;        /* акцентный цвет — терракотовый (кнопки, галочки, подсветка полей) */
+  --err: #c8402f;           /* цвет ошибок (красный) */
+  /* Шрифты: браузер берёт первый из списка, который есть на устройстве, дальше по очереди */
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;   /* шрифт с засечками для заголовков */
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* обычный системный шрифт */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;                  /* моноширинный шрифт для кода */
+}
+* { box-sizing: border-box; }  /* у ВСЕХ элементов ширина включает padding и рамку — так проще считать размеры */
+html { -webkit-text-size-adjust: 100%; } /* запрещаем iPhone самовольно увеличивать текст */
+body {
+  margin: 0;                               /* убираем стандартный отступ вокруг страницы */
+  background: var(--bg);                   /* фон — бежевый */
+  color: var(--text);                      /* цвет текста */
+  font: 16px/1.6 var(--sans);              /* размер шрифта 16px, высота строки 1.6, шрифт sans */
+  -webkit-font-smoothing: antialiased;     /* более гладкое сглаживание шрифта на Mac */
+}
+body { padding: 48px 16px; min-height: 100vh; display: flex; flex-direction: column; }   /* страница на всю высоту окна; колонка нужна для центрирования листа по вертикали */               /* отступы от краёв окна до «листа»: 48px сверху/снизу, 16px по бокам */
+main {                                     /* «лист бумаги» — главный контейнер */
+  width: 100%; max-width: 760px;           /* на всю доступную ширину, но не шире 760px */
+  margin: 0 auto;                          /* по центру (авто-отступы слева и справа) */
+  background: var(--paper);                /* светлый фон листа */
+  border: 1px solid var(--line);           /* тонкая рамка */
+  border-radius: 22px;                     /* скруглённые углы */
+  padding: 52px 56px 44px;                 /* внутренние отступы: сверху, по бокам, снизу */
+  box-shadow: 0 24px 60px -30px rgba(90,60,25,.22);  /* мягкая тень под листом */
+  position: relative; z-index: 1;                    /* лист лежит поверх плавающих цветных пятен фона */
+  transition: opacity .18s ease, transform .18s ease; /* плавное исчезновение при переходе между страницами */
+}
+h1 { font: 400 36px/1.2 var(--serif); letter-spacing: -.01em; margin: 0 0 8px; }  /* главный заголовок: не жирный, 36px, с засечками */
+h2 { font: 400 22px/1.3 var(--serif); margin: 0; }                                 /* заголовок поменьше (названия задач) */
+.lead { color: var(--muted); margin: 0 0 36px; }          /* серый подзаголовок под h1 */
+hr { border: 0; border-top: 1px solid var(--line); margin: 0 0 32px; }  /* горизонтальная линия (сейчас на сайте не используется) */
+.muted { color: var(--muted); }                            /* класс «приглушённый текст» */
+
+/* ---------- поля ввода ---------- */
+label {                                    /* подписи над полями («ИМЯ», «ФАМИЛИЯ») */
+  display: block;                          /* каждая подпись на своей строке */
+  font-size: 12px;                         /* мелкий текст */
+  letter-spacing: .08em;                   /* разрядка между буквами */
+  text-transform: uppercase;               /* ВСЕ БУКВЫ ЗАГЛАВНЫЕ */
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+input[type=text], input[type=password], textarea.plain {   /* обычные текстовые поля */
+  width: 100%;                             /* на всю ширину колонки */
+  padding: 10px 2px;                       /* внутренний отступ */
+  font: inherit;                           /* шрифт как у страницы (по умолчанию у полей свой, некрасивый) */
+  color: var(--text);
+  background: transparent;                 /* без своего фона */
+  border: 0;                               /* убираем рамку со всех сторон... */
+  border-bottom: 1px solid var(--line-strong);  /* ...и оставляем только линию снизу */
+  border-radius: 0;
+  transition: border-color .15s;           /* цвет линии меняется плавно за 0.15 сек */
+}
+/* когда поле выбрано (в него кликнули): */
+input[type=text]:focus, input[type=password]:focus, textarea.plain:focus { outline: 0; border-color: var(--accent); }  /* убираем стандартную синюю обводку, линия становится терракотовой */
+/* многострочное поле условия в админке — с полной рамкой, а не только линией снизу */
+textarea.plain { resize: vertical; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); }
+.names { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding-bottom: 36px; }  /* блок «Имя / Фамилия»: две равные колонки через сетку (grid) */
+.task { padding: 28px 0 12px; border-top: 1px solid var(--line); }  /* блок задачи: сверху разделительная линия */
+
+/* ---------- задачи ---------- */
+.task-head { margin-bottom: 4px; }          /* заголовок задачи */
+.task-text { color: var(--muted); white-space: pre-wrap; margin: 6px 0 4px; font-size: 15px; }  /* условие задачи; pre-wrap сохраняет переносы строк, которые ввёл админ */
+
+/* ---------- поле для кода с подчёркиванием ошибок ----------
+   ХИТРОСТЬ: в обычном <textarea> нельзя подчеркнуть кусок текста. Поэтому под ним лежит
+   второй слой (.back) с ТОЧНО ТАКИМ ЖЕ текстом, но невидимым — а ошибочный кусок в нём
+   обёрнут в <mark> с красной волнистой линией. Textarea сверху прозрачный, и получается,
+   что подчёркивание «прилипло» к тексту. */
+.code-wrap {
+  position: relative;                      /* чтобы слой .back мог позиционироваться относительно этой обёртки */
+  margin-top: 16px;
+  background: var(--code-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  overflow: hidden;                        /* всё, что вылезает за скруглённые углы, обрезается */
+  transition: border-color .15s, box-shadow .15s;
+}
+/* когда внутри обёртки выбран textarea — подсвечиваем рамку и добавляем лёгкое свечение */
+.code-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+/* ВАЖНО: у невидимого слоя и у textarea должны быть ОДИНАКОВЫЕ шрифт и отступы, иначе подчёркивание «уедет» */
+.code-wrap .back, .code-wrap textarea {
+  font: 14px/1.65 var(--mono);             /* моноширинный шрифт 14px */
+  tab-size: 4;                             /* символ Tab = 4 пробела по ширине */
+  white-space: pre;                        /* не переносить длинные строки, сохранять все пробелы */
+  padding: 14px 16px;
+  margin: 0;
+}
+.back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }  /* слой растянут на всю обёртку, не ловит клики мыши (pointer-events: none) */
+.back-in { color: transparent; will-change: transform; }                            /* внутри слоя текст невидим; will-change — подсказка браузеру, что будем двигать (быстрее) */
+.back-in mark {                            /* <mark> — тот самый кусок кода с ошибкой */
+  background: transparent; color: transparent;   /* сам текст невидим... */
+  text-decoration: underline wavy var(--err);    /* ...но подчёркнут красной волнистой линией */
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;              /* линия чуть ниже текста, чтобы не сливалась с буквами */
+}
+.code-wrap textarea {
+  position: relative;                      /* лежит поверх слоя .back */
+  display: block;
+  width: 100%;
+  min-height: 220px;                       /* минимальная высота поля */
+  resize: vertical;                        /* тянуть можно только вверх-вниз */
+  border: 0; outline: 0;                   /* без собственной рамки */
+  background: transparent;                 /* прозрачный фон, чтобы было видно подчёркивание снизу */
+  color: var(--text);                      /* а сам текст — видимый */
+  overflow: auto;                          /* полосы прокрутки, если код не помещается */
+}
+.err { min-height: 20px; margin: 6px 2px 0; font-size: 13px; color: var(--err); }   /* строка с текстом ошибки под полем кода */
+
+/* ---------- кнопки ---------- */
+button {                                   /* базовый стиль ВСЕХ кнопок */
+  font: inherit; cursor: pointer;          /* курсор-«рука» при наведении */
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;                    /* огромный радиус = полностью круглые края («таблетка») */
+  padding: 9px 20px;
+  transition: background .15s, border-color .15s, opacity .15s, transform .18s, box-shadow .25s;   /* плавные изменения, в том числе подъём и тень */
+}
+button:hover { border-color: var(--accent); transform: translateY(-1px); }          /* при наведении рамка становится терракотовой */
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); padding: 13px 34px; margin-top: 8px; }  /* главная кнопка — залита цветом */
+button.primary:hover { opacity: .9; border-color: var(--accent); }   /* при наведении чуть светлее */
+button.small { padding: 4px 12px; font-size: 13px; }   /* маленькие кнопки («Копировать», «↑») */
+button.danger { color: var(--err); }                   /* опасные действия («Удалить») — красным */
+button:disabled { opacity: .45; cursor: default; }     /* недоступная кнопка — бледная */
+.msg { min-height: 22px; font-size: 14px; margin: 12px 0 0; }   /* строка сообщений («Сохранено», ошибки) */
+.msg.bad { color: var(--err); }                        /* если сообщение об ошибке — красное */
+.foot { margin-top: 40px; text-align: center; font-size: 13px; }   /* низ страницы со ссылкой «Для преподавателя» */
+.foot a, .back-link { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }  /* ссылки: серые, без подчёркивания, но с тонкой линией снизу */
+.foot a:hover, .back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---------- экран «Работа отправлена» ---------- */
+.done { text-align: center; padding: 72px 0; }
+.done .mark { position: relative; width: 76px; height: 76px; margin: 0 auto 24px; }   /* контейнер для анимированной галочки в кружке */
+.done .mark svg { width: 100%; height: 100%; overflow: visible; }                       /* SVG-картинка на весь контейнер */
+.done .mark circle, .done .mark path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }  /* линии без заливки, терракотовые, с круглыми концами */
+.done .mark circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw .7s cubic-bezier(.4,0,.2,1) .1s forwards; }   /* кружок «рисуется»: длина линии 151, смещение уменьшается до 0 */
+.done .mark path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw .4s cubic-bezier(.4,0,.2,1) .65s forwards; }        /* потом так же рисуется галочка */
+.done .mark::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: ring .9s ease-out .7s; }  /* расходящееся кольцо-вспышка */
+
+/* ---------- админка ---------- */
+.bar { display: flex; align-items: center; gap: 22px; margin-bottom: 36px; border-bottom: 1px solid var(--line); }  /* верхняя панель с вкладками (flex = элементы в ряд) */
+.bar button.tab { position: relative; border: 0; border-radius: 0; padding: 10px 0; margin-bottom: -1px; color: var(--muted); }  /* вкладка: кнопка без рамки; полоску снизу рисует ::after (см. анимации) */
+.bar button.tab.active { color: var(--text); }   /* активная вкладка: тёмный текст */
+.bar .spacer { flex: 1; }                  /* «пружина»: занимает всё свободное место и отталкивает «Выйти» вправо */
+.bar button.out { border: 0; color: var(--muted); padding: 10px 0; }   /* кнопка «Выйти» */
+.sub { border-bottom: 1px solid var(--line); transition: max-height .38s ease, opacity .3s ease, transform .38s ease; }   /* одна сданная работа; transition нужен для плавного удаления */
+.sub-head { display: flex; align-items: baseline; gap: 12px; padding: 16px 2px; cursor: pointer; }  /* строка с фамилией (на неё кликаем, чтобы раскрыть) */
+.sub-head .name { font: 400 19px var(--serif); flex: 1; }   /* фамилия и имя — слева, занимают всё место */
+.sub-head .arrow { color: var(--muted); transition: transform .2s; }   /* стрелочка › */
+.sub.open .arrow { transform: rotate(90deg); }   /* когда работа раскрыта — стрелка поворачивается вниз */
+.sub-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .38s cubic-bezier(.2,.8,.2,1); }   /* тело работы: высота строки 0fr = свёрнуто. Это приём, который позволяет плавно анимировать «раскрытие» */
+.sub.open .sub-body { grid-template-rows: 1fr; }   /* у раскрытой работы строка тянется на всю высоту содержимого (1fr) — плавно за 0.38 сек */
+.sub-in { overflow: hidden; min-height: 0; padding: 0 2px; }   /* внутренняя обёртка: обрезает содержимое, пока строка схлопнута */
+.sub-pad { padding-bottom: 22px; }                              /* нижний отступ внутри обёртки (снаружи он бы не схлопывался) */
+.ans-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }  /* строка «Название задачи [Копировать]» */
+.ans-head b { flex: 1; font: 400 16px var(--serif); }
+pre.answer {                               /* блок с кодом ученика в админке; <pre> сохраняет пробелы и переносы */
+  margin: 0; padding: 14px 16px; background: var(--code-bg);
+  border: 1px solid var(--line); border-radius: 10px;
+  overflow: auto; font: 14px/1.65 var(--mono); tab-size: 4;
+}
+.search { margin-bottom: 8px; }            /* поле поиска */
+.count { font-size: 13px; margin: 0 0 8px; }   /* надпись «Работ: N» */
+.empty { text-align: center; color: var(--muted); padding: 56px 0; }   /* пустые состояния («Пока никто ничего не сдал») */
+
+.field { margin-bottom: 28px; }            /* обёртка поля в настройках */
+.check {                                   /* строка с галочкой в настройках */
+  display: flex; gap: 12px; align-items: flex-start; cursor: pointer; margin-bottom: 18px;
+  text-transform: none; letter-spacing: 0; font-size: 16px; color: var(--text);   /* отменяем стиль <label> (заглавные буквы и т.п.) */
+}
+.check input {                             /* рисуем свою галочку вместо стандартной */
+  appearance: none; -webkit-appearance: none;   /* отключаем стандартный вид браузера */
+  flex: none; width: 22px; height: 22px; margin: 2px 0 0;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper);
+  display: grid; place-items: center; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.check input:checked { background: var(--accent); border-color: var(--accent); }   /* когда включена — заливаем цветом */
+.check input:checked::after {              /* ::after — «виртуальный элемент» внутри квадрата: рисуем самой галочку */
+  content: ""; width: 5px; height: 10px; margin-top: -2px;
+  border: solid #fff; border-width: 0 2px 2px 0;   /* только нижняя и правая линии белого цвета... */
+  transform: rotate(45deg);                          /* ...повёрнутые на 45° — получилась «✓» */
+}
+.check small { display: block; color: var(--muted); font-size: 13px; }   /* маленькая подпись под названием галочки */
+.task-edit { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; background: var(--code-bg); }   /* карточка редактирования одной задачи */
+.task-edit .top { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }   /* верхний ряд: название + кнопки */
+.task-edit .top input { flex: 1; }         /* поле названия растягивается */
+.login { max-width: 360px; margin: 0 auto; }   /* форма входа: узкая и опущена вниз (12vh = 12% высоты окна) */
+
+/* ---------- окно подтверждения (модальное) ---------- */
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;   /* на весь экран, карточка по центру */
+  background: rgba(42,37,32,.38); backdrop-filter: blur(5px);                                    /* затемнение и размытие всего, что за окном */
+  animation: fade .2s ease;
+}
+.modal.closing { opacity: 0; transition: opacity .18s ease; }            /* при закрытии плавно тает */
+.modal-card {
+  width: 100%; max-width: 440px; background: var(--paper); border: 1px solid var(--line);
+  border-radius: 22px; padding: 30px 30px 26px; box-shadow: 0 30px 80px -30px rgba(60,40,15,.5);
+  animation: pop .35s cubic-bezier(.2,1.3,.4,1);                         /* «выпрыгивает» с пружинкой */
+}
+.modal-card h2 { margin-bottom: 12px; }
+.modal-text p { margin: 0 0 10px; }
+.modal-text .warn { color: var(--err); }                                 /* предупреждение «не заполнено…» */
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; flex-wrap: wrap; }
+button.dangerous { background: var(--err); border-color: var(--err); }   /* красная кнопка подтверждения для опасных действий */
+
+/* ---------- экран «Работа отправлена» и действия ученика ---------- */
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }    /* ряд кнопок */
+.done .actions { justify-content: center; margin-top: 28px; }                    /* на экране статуса кнопки по центру */
+.done .meta { margin: 6px 0 0; font-size: 14px; }                                /* строка «Иван Петров · отправлено … · исправлена 2 раза» */
+
+/* ---------- метки и история изменений в админке ---------- */
+.chip { font-size: 12px; line-height: 1; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }  /* маленькая «таблетка»-метка */
+.chip.edit { color: var(--accent); border-color: var(--accent); }                /* «исправлено N раз» — терракотовая */
+.chip.off { color: var(--err); border-color: var(--err); }                       /* «отозвана» — красная */
+.hist { margin-top: 22px; padding-top: 16px; border-top: 1px dashed var(--line-strong); }   /* блок «История изменений» */
+.hist-title { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.hev { margin: 8px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--code-bg); }  /* одно событие истории */
+.hev-sum { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; padding: 11px 14px; cursor: pointer; list-style: none; }
+details.hev > summary::-webkit-details-marker { display: none; }                 /* прячем стандартный треугольник у <details> */
+details.hev > summary::before { content: "›"; color: var(--muted); display: inline-block; transition: transform .2s; }   /* вместо него свой, поворачивается при раскрытии */
+details.hev[open] > summary::before { transform: rotate(90deg); }
+div.hev > .hev-sum { cursor: default; }                                          /* у записей без раскрытия (сдана / отозвана) курсор обычный */
+.hev-body { padding: 0 14px 14px; }
+.hev-name { margin: 0 0 6px; font-size: 14px; }
+.cmp-l { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }   /* подписи «До» и «После» */
+.dl { display: block; min-height: 1.65em; margin: 0 -16px; padding: 0 16px; }    /* одна строка кода в сравнении (блок на всю ширину) */
+.dl.del { background: rgba(200,64,47,.14); }                                     /* строка, которую убрали — красноватая */
+.dl.add { background: rgba(90,140,70,.18); }                                     /* строка, которую добавили — зеленоватая */
+
+/* ---------- вход: имя и фамилия, затем задачи ---------- */
+#form { margin-top: 0; }                                       /* заголовка на странице ученика нет — форма сразу вверху */
+main:has(#step1:not([hidden])), main:has(.done), main:has(.login) { margin: auto; }   /* лист ровно по центру экрана (и по вертикали тоже) на экранах входа, статуса и логина админа */
+#step1 { max-width: 380px; margin: 12px auto 8px; }               /* первый шаг — узкая колонка по центру листа */
+#step1 h1 { text-align: center; font-size: 32px; margin: 0 0 32px; }   /* заголовок «Регистрация» по центру */
+#step1 .names { grid-template-columns: 1fr; gap: 26px; }          /* имя и фамилия друг под другом (вертикально), а не рядом */
+#step1 .names input { font-size: 20px; padding: 12px 2px; }    /* на первом экране поля покрупнее */
+#step1 .actions .primary { width: 100%; }                         /* кнопка «Продолжить» на всю ширину колонки */
+#step1 .names { padding-bottom: 12px; }
+#step1 .actions { margin-top: 22px; }                         /* кнопка «Продолжить» чуть ниже полей */
+#step1.fading, #step2.fading { opacity: 0; transform: translateY(-6px); transition: opacity .16s ease, transform .16s ease; }   /* шаг плавно тает при переходе */
+.who { display: flex; align-items: baseline; gap: 14px; padding-bottom: 22px; font: 400 20px var(--serif); }   /* строка «Иван Петров · Изменить» над задачами */
+.linkbtn { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0; color: var(--muted); font: 400 13px var(--sans); }   /* кнопка, выглядящая как ссылка */
+.linkbtn:hover { color: var(--accent); border-color: var(--accent); transform: none; }
+
+/* ---------- АНИМАЦИИ ----------
+   @keyframes — это «сценарий» анимации: что с элементом происходит от начала (from) до конца (to).
+   Подключается свойством animation: имя длительность функция-плавности задержка режим. */
+
+/* Плавное появление: блок выезжает снизу и проявляется */
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+/* Класс .rise навешивает JS (функция reveal). --i — порядковый номер элемента, из него считается задержка: каждый следующий блок появляется на 60мс позже («каскад»).
+   backwards = пока ждём задержку, элемент невидим; после конца анимации стили возвращаются к обычным (иначе hover/transition перестали бы работать) */
+.rise { animation: rise .6s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+
+/* Уход страницы: перед переключением лист чуть уезжает вверх и тает (класс ставит JS в функции leave) */
+main.leaving { opacity: 0; transform: translateY(-8px) scale(.992); }
+
+/* Кнопка при нажатии «вдавливается» (стоит ПОСЛЕ :hover, чтобы перебить подъём) */
+button:active { transform: translateY(0) scale(.96); }
+/* Главная кнопка при наведении светится терракотовой тенью */
+button.primary:hover { box-shadow: 0 10px 24px -10px rgba(180,98,60,.7); }
+/* Не поднимаем вкладки и «Выйти» — им подъём не нужен */
+.bar button:hover { transform: none; }
+
+/* Крутилка на главной кнопке, пока идёт отправка (класс .loading ставит JS) */
+@keyframes spin { to { transform: rotate(360deg); } }
+button.loading { color: transparent; pointer-events: none; }   /* прячем надпись и блокируем клики */
+button.loading::after {                                          /* рисуем кружок с «хвостиком» посередине кнопки */
+  content: ""; position: absolute; inset: 0; margin: auto; width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%;
+  animation: spin .7s linear infinite;                           /* бесконечное вращение */
+}
+button.primary { position: relative; }                           /* чтобы крутилка позиционировалась внутри кнопки */
+
+/* Сообщения об ошибках и «Сохранено» плавно проявляются, когда в них появляется текст (:not(:empty) = «не пустой») */
+@keyframes msgIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.err:not(:empty), .msg:not(:empty) { animation: msgIn .3s ease; }
+
+/* Подпись над полем становится терракотовой, пока в поле печатают */
+label { transition: color .2s; }
+.names > div:focus-within label { color: var(--accent); }
+/* Поле кода слегка приподнимается при наведении */
+.code-wrap:hover { border-color: var(--accent); }
+
+/* Полоска под активной вкладкой «вырастает» слева направо */
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.bar button.tab.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: var(--accent); transform-origin: left;
+  animation: grow .45s cubic-bezier(.2,.8,.2,1) .1s backwards;
+}
+
+/* Строка работы в админке: при наведении фамилия краснеет в терракоту */
+.sub-head .name { transition: color .2s; }
+.sub-head:hover .name { color: var(--accent); }
+/* Удаляемая работа уезжает вправо и схлопывается (max-height в 0 выставляет JS) */
+.sub.removing { opacity: 0; transform: translateX(44px); overflow: hidden; border-bottom-color: transparent; }
+
+/* Кнопка «Копировать» коротко «пульсирует» после нажатия */
+@keyframes pulse { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+button.pulse { animation: pulse .35s ease; }
+
+/* Новая задача в настройках «выпрыгивает» с пружинкой */
+@keyframes pop { from { opacity: 0; transform: scale(.92) translateY(-8px); } to { opacity: 1; transform: none; } }
+.task-edit.pop { animation: pop .45s cubic-bezier(.2,1.3,.4,1); }
+
+/* Галочка в настройках «выскакивает» при включении */
+@keyframes tick { from { transform: rotate(45deg) scale(0); } to { transform: rotate(45deg) scale(1); } }
+.check input:checked::after { animation: tick .3s cubic-bezier(.2,1.5,.4,1); }
+
+/* Неверный пароль: форма трясётся из стороны в сторону */
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(3px); } }
+.login.shake { animation: shake .45s ease; }
+
+/* Экран «Работа отправлена»: рисование кружка/галочки, вспышка-кольцо */
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes ring { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.9); } }
+
+/* Конфетти: каждый кусочек летит по своей траектории (--dx, --dy, --rot задаёт JS случайно) и падает вниз с затуханием */
+@keyframes confetti {
+  from { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
+  to   { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 140px)) rotate(var(--rot)); }
+}
+.confetti { position: fixed; width: 8px; height: 12px; border-radius: 2px; pointer-events: none; z-index: 50; animation: confetti 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
+
+/* Мягкие цветные пятна на фоне медленно «плавают». fixed = прибиты к окну, blur = размытие, pointer-events: none = не мешают кликам */
+@keyframes drift1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(90px, 70px) scale(1.15); } }
+@keyframes drift2 { from { transform: translate(0, 0) scale(1); } to { transform: translate(-80px, -60px) scale(1.2); } }
+body::before, body::after { content: ""; position: fixed; z-index: 0; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; }
+body::before { width: 420px; height: 420px; left: -120px; top: -100px; background: #f0d9bd; animation: drift1 18s ease-in-out infinite alternate; }
+body::after  { width: 480px; height: 480px; right: -140px; bottom: -140px; background: #ecd0c0; animation: drift2 22s ease-in-out infinite alternate; }
+
+/* Если у человека в системе включено «уменьшить движение» (для тех, кого тошнит от анимаций) — отключаем всё */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ---------- адаптация под телефон ----------
+   Правила внутри действуют только если окно не шире 560px */
+@media (max-width: 560px) {
+  body { padding: 12px; }
+  main { padding: 28px 20px 28px; border-radius: 18px; }   /* на телефоне отступы внутри листа меньше */
+  h1 { font-size: 28px; }
+  .names { grid-template-columns: 1fr; gap: 20px; }          /* имя и фамилия — друг под другом, а не рядом */
+}
+</style>
+</head>
+<body>
+<!-- Единственный видимый элемент в HTML. Весь интерфейс JavaScript рисует внутри него -->
+<main id="app"></main>
+
+<script>
+/* ======================= JavaScript ======================= */
+
+/* ---------- маленькие помощники ---------- */
+
+// Элемент <main id="app"> — сюда будем «рисовать» страницы
+const app = document.getElementById('app');
+
+// Сокращение: $('#id') вместо длинного document.querySelector('#id').
+// Второй аргумент root — искать не по всей странице, а только внутри какого-то элемента
+const $ = (sel, root = document) => root.querySelector(sel);
+
+// Защита от «вредного» текста. Если ученик напишет в коде <script>, мы не хотим, чтобы браузер выполнил его.
+// Функция заменяет опасные символы (< > & " ') на безопасные коды, и текст показывается как текст.
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Токен админа. Храним в sessionStorage — это память вкладки, она очищается при закрытии вкладки
+let token = sessionStorage.getItem('adm') || '';
+
+// Один отступ — 4 пробела (используется в автоотступе)
+const INDENT = '    ';
+
+/* ---------- анимации (помощники) ---------- */
+
+// Включено ли у человека «уменьшить движение». Если да — анимации в JS пропускаем
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Пауза: await sleep(200) — «подожди 200 миллисекунд»
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Запускает каскадное появление: находит элементы по селектору, нумерует их (--i) и вешает класс .rise (см. CSS)
+function reveal(sel) {
+  document.querySelectorAll(sel).forEach((el, i) => {
+    el.style.setProperty('--i', Math.min(i, 14));   // номер для задержки; не больше 14, чтобы последние не ждали вечность
+    el.classList.add('rise');
+  });
+}
+
+// Перезапускает CSS-анимацию у элемента (нужно, когда сообщение показывается второй раз подряд)
+function flash(el) { el.style.animation = 'none'; el.offsetHeight; el.style.animation = ''; }
+
+// Плавный уход текущей страницы: лист тает и чуть уезжает вверх (~0.18 сек)
+async function leave() {
+  if (reduceMotion || !app.children.length) return;   // анимации выключены или показывать нечего — не ждём
+  app.classList.add('leaving');                       // CSS (main.leaving) делает исчезновение
+  await sleep(180);                                   // ждём окончания
+  app.classList.remove('leaving');                    // возвращаем лист — сейчас в него нарисуется новая страница
+}
+
+// «Перейти на другую страницу»: сначала плавно убираем старую, потом рисуем новую (render — функция, которая рисует новую)
+let navId = 0;                                        // номер последнего перехода
+async function go(render) {
+  const id = ++navId;                                 // запоминаем номер этого перехода
+  await leave();
+  if (id === navId) render();                         // рисуем, только если за это время не начался ещё более новый переход
+}
+
+// Конфетти: взрыв разноцветных кусочков из центра элемента origin
+function burst(origin) {
+  if (reduceMotion || !origin) return;
+  const r = origin.getBoundingClientRect();                         // где элемент на экране
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;       // его центр
+  const colors = ['#b4623c', '#d9a066', '#e8c9a0', '#8a7f70', '#c8402f'];   // палитра сайта: терракота, песок, серо-бежевый, красный
+  for (let i = 0; i < 34; i++) {
+    const p = document.createElement('i');                          // один кусочек — пустой тег <i>
+    p.className = 'confetti';
+    const ang = Math.random() * Math.PI * 2;                        // случайное направление (в радианах)
+    const dist = 90 + Math.random() * 170;                          // случайная дальность полёта
+    // передаём CSS стартовую точку, цвет и траекторию через переменные
+    p.style.cssText = `left:${cx}px;top:${cy}px;background:${colors[i % colors.length]};` +
+      `--dx:${Math.cos(ang) * dist}px;--dy:${Math.sin(ang) * dist - 70}px;--rot:${Math.random() * 720 - 360}deg;` +
+      `animation-delay:${Math.random() * 90}ms`;
+    document.body.appendChild(p);                                   // добавляем на страницу
+    setTimeout(() => p.remove(), 1500);                             // и через 1.5 сек убираем, чтобы не копился мусор
+  }
+}
+
+/* ---------- окно подтверждения ---------- */
+
+// Показывает красивое окно «Вы уверены?». Возвращает обещание (Promise): true — нажали «ОК», false — отменили.
+// html — готовый (уже безопасный!) HTML с пояснением; danger — красная кнопка для опасных действий
+function confirmDialog({ title, html = '', ok = 'Да', cancel = 'Отмена', danger = false }) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');                 // затемнённая подложка на весь экран
+    wrap.className = 'modal';
+    wrap.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>${esc(title)}</h2>
+        <div class="modal-text">${html}</div>
+        <div class="modal-actions">
+          <button type="button" data-no>${esc(cancel)}</button>
+          <button type="button" class="primary${danger ? ' dangerous' : ''}" data-yes>${esc(ok)}</button>
+        </div>
+      </div>`;
+    // Закрывает окно и отдаёт ответ тому, кто его вызвал
+    const close = answer => {
+      document.removeEventListener('keydown', onKey);           // перестаём слушать Esc
+      wrap.classList.add('closing');                            // плавно тает (CSS)
+      setTimeout(() => wrap.remove(), reduceMotion ? 0 : 180);  // и после этого убираем из страницы
+      resolve(answer);
+    };
+    const onKey = e => { if (e.key === 'Escape') close(false); };   // Esc = отмена
+    wrap.addEventListener('click', e => {
+      if (e.target === wrap || e.target.closest('[data-no]')) close(false);   // клик по фону или «Отмена»
+      else if (e.target.closest('[data-yes]')) close(true);                    // клик по «ОК»
+    });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(wrap);                            // показываем окно
+    wrap.querySelector('[data-yes]').focus();                   // фокус на главную кнопку (Enter подтвердит)
+  });
+}
+
+/* ---------- сравнение двух версий кода (для истории изменений) ---------- */
+
+// Сравнивает два текста построчно. Возвращает строки обоих текстов и номера строк, которые убрали (del) и добавили (add).
+// Алгоритм LCS: ищем самую длинную общую «цепочку» неизменившихся строк, всё остальное — изменения.
+function diffLines(a, b) {
+  const A = a.split('\n'), B = b.split('\n'), del = new Set(), add = new Set();
+  const n = A.length, m = B.length;
+  if (n * m > 4e6) return { A, B, del, add };                   // тексты огромные — не сравниваем (чтобы не подвесить браузер)
+  // dp[i][j] = длина общей цепочки строк для хвостов A[i..] и B[j..]
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  let i = 0, j = 0;                                             // идём по двум текстам одновременно
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { i++; j++; }                            // строки одинаковые — идём дальше
+    else if (dp[i + 1][j] >= dp[i][j + 1]) del.add(i++);        // строка есть только «до» — её убрали
+    else add.add(j++);                                          // строка есть только «после» — её добавили
+  }
+  while (i < n) del.add(i++);                                   // хвосты, которые остались
+  while (j < m) add.add(j++);
+  return { A, B, del, add };
+}
+
+// Рисует строки кода: изменённые (номера из set) получают класс cls (del — красный фон, add — зелёный)
+function renderDiff(lines, set, cls) {
+  if (lines.length === 1 && lines[0] === '') return '<span class="muted">(пусто)</span>';   // код пустой
+  return lines.map((l, i) => `<span class="dl${set.has(i) ? ' ' + cls : ''}">${esc(l) || ' '}</span>`).join('');
+}
+
+// Склонение слова «раз»: 1 раз, 2 раза, 5 раз, 21 раз, 22 раза...
+const plural = n => (n % 10 === 1 && n % 100 !== 11) ? 'раз'
+  : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? 'раза' : 'раз';
+
+// Дата со временем до секунд — для истории изменений («1 октября, 19:30:12»)
+const fmtDateTime = ts => new Date(ts * 1000).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+/* ---------- общение с сервером ---------- */
+
+// Единая функция для всех запросов к серверу. path — например '/config', opts — метод и тело запроса
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };           // говорим серверу, что шлём JSON
+  if (token) headers.Authorization = 'Bearer ' + token;             // если мы админ — прикладываем «пропуск»
+  const res = await fetch('/api' + path, { ...opts, headers });     // сам запрос на адрес /api/... (await — ждём ответа)
+  let data = {};
+  try { data = await res.json(); } catch (e) {}                     // разбираем ответ как JSON (если не получилось — пусто)
+  // Если сервер ответил ошибкой (не 200) — «бросаем» ошибку с текстом и кодом, её поймает тот, кто вызвал api()
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Ошибка'), { status: res.status });
+  return data;                                                      // всё хорошо — отдаём данные
+}
+
+/* ---------- редактор кода ---------- */
+
+// Вставляет текст в поле на место курсора.
+// Через execCommand вставка попадает в историю «отменить» (Cmd+Z) — это важно для удобства
+function insertText(ta, text) {
+  ta.focus();                                                        // возвращаем фокус в поле
+  // Если execCommand не сработал (старые браузеры) — вставляем запасным способом
+  if (!document.execCommand('insertText', false, text)) ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
+}
+
+// Включает «умные» клавиши в поле кода: Enter, Tab, Backspace — как в редакторе для Python
+function setupAutoIndent(ta) {
+  ta.addEventListener('keydown', e => {                              // срабатывает при каждом нажатии клавиши в поле
+    if (e.isComposing) return;                                       // идёт ввод через IME (например, иероглифы) — не вмешиваемся
+    const v = ta.value, s = ta.selectionStart, en = ta.selectionEnd; // v — весь текст, s — начало выделения/курсор, en — конец
+    const lineStart = v.lastIndexOf('\n', s - 1) + 1;                // индекс начала текущей строки
+    const before = v.slice(lineStart, s);                            // часть текущей строки ДО курсора
+
+    // ----- Enter: новая строка с правильным отступом -----
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();                                            // отменяем обычный Enter — сделаем свой
+      const lines = v.slice(0, lineStart).split('\n');               // все строки выше текущей
+      lines.pop();                                                   // последний элемент — пустой «хвост», выкидываем
+      let cur = before.match(/^[ \t]*/)[0];                          // отступ текущей строки (пробелы/табы в её начале)
+      // Текст строки без отступа и без комментария (# ...), без пробелов в конце
+      const code = before.slice(cur.length).replace(/\s*#.*$/, '').trimEnd();
+      const word = (code.match(/^[A-Za-z_]+/) || [''])[0];           // первое слово строки: if, for, return, else...
+      let lineText = before;                                         // как будет выглядеть текущая строка после Enter
+
+      /* else / elif / except / finally встают на уровень своего if / try */
+      if (/^(else|elif|except|finally)$/.test(word) && code.endsWith(':') && cur.length >= 4) {
+        const prev = lines.slice().reverse().find(l => l.trim());    // ближайшая непустая строка сверху
+        // Если она с таким же отступом и не оканчивается на «:», значит else набран слишком глубоко
+        if (prev && prev.match(/^[ \t]*/)[0].length === cur.length && !prev.trimEnd().endsWith(':')) {
+          for (let i = lines.length - 1; i >= 0; i--) {              // идём вверх по строкам...
+            const l = lines[i], ind = l.match(/^[ \t]*/)[0].length;  // l — строка, ind — её отступ
+            // ...ищем ближайший if/for/while/try/... с МЕНЬШИМ отступом — это «хозяин» нашего else
+            if (l.trim() && ind < cur.length && /^(if|elif|for|while|try|except|with)\b/.test(l.trim())) { cur = l.match(/^[ \t]*/)[0]; break; }
+          }
+          lineText = cur + before.trimStart();                       // переписываем строку с исправленным отступом
+        }
+      }
+
+      let next = cur;                                                // отступ новой строки по умолчанию = как у текущей
+      if (code.endsWith(':')) next = cur + INDENT;                   // строка оканчивается на «:» → отступ +4 пробела
+      // После return/break/continue/pass/raise блок заканчивается → отступ на 4 меньше
+      else if (/^(return|break|continue|pass|raise)$/.test(word) && cur.length >= 4) next = cur.slice(0, -4);
+      ta.setSelectionRange(lineStart, s);                            // выделяем текущую строку до курсора...
+      insertText(ta, lineText + '\n' + next);                        // ...и заменяем её на исправленную + перенос + новый отступ
+
+    // ----- Tab: вставить 4 пробела (Shift+Tab — убрать) -----
+    } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();                                            // не даём Tab перепрыгнуть на следующее поле
+      if (e.shiftKey) {                                              // Shift+Tab — убрать отступ
+        const m = v.slice(lineStart).match(/^ {1,4}/);               // до 4 пробелов в начале строки
+        if (m) {
+          ta.setSelectionRange(lineStart, lineStart + m[0].length);  // выделяем эти пробелы
+          insertText(ta, '');                                        // и удаляем
+          // возвращаем курсор на то же место текста (с поправкой на удалённое)
+          ta.setSelectionRange(Math.max(lineStart, s - m[0].length), Math.max(lineStart, en - m[0].length));
+        }
+      } else insertText(ta, INDENT);                                 // обычный Tab — вставляем 4 пробела
+
+    // ----- Backspace: стереть сразу целый отступ из 4 пробелов -----
+    } else if (e.key === 'Backspace' && s === en && before.length >= 4 && /^ +$/.test(before) && before.length % 4 === 0) {
+      // условия: нет выделения, слева от курсора только пробелы и их число кратно 4
+      e.preventDefault();
+      ta.setSelectionRange(s - 4, s);                                // выделяем 4 пробела слева
+      insertText(ta, '');                                            // удаляем их одним нажатием
+    }
+  });
+}
+
+/* ---------- перевод ошибок Python на русский ---------- */
+
+// Список пар: [что искать в английском тексте ошибки, русский вариант]. $1, $2 — подставляются найденные символы
+const ERR_RU = [
+  [/expected ':'/, 'ожидается «:»'],
+  [/invalid syntax/, 'синтаксическая ошибка'],
+  [/unterminated string literal/, 'не закрыта строка'],
+  [/unterminated triple-quoted string/, 'не закрыта многострочная строка'],
+  [/'(.)' was never closed/, 'не закрыта скобка «$1»'],
+  [/unmatched '(.)'/, 'лишняя скобка «$1»'],
+  [/closing parenthesis '(.)' does not match opening parenthesis '(.)'/, 'скобка «$1» не соответствует «$2»'],
+  [/unexpected indent/, 'лишний отступ'],
+  [/expected an indented block/, 'ожидается отступ'],
+  [/unindent does not match/, 'неверный уровень отступа'],
+  [/unexpected EOF/, 'неожиданный конец кода'],
+  [/Missing parentheses in call to 'print'/, 'у print нужны скобки'],
+  [/invalid decimal literal/, 'неверное число'],
+  [/cannot assign to/, 'сюда нельзя присваивать'],
+];
+
+// Принимает английский текст ошибки, возвращает русский (или оставляет как есть, если перевода нет)
+function ruMsg(msg) {
+  for (const [re, ru] of ERR_RU) {                                   // перебираем все пары по очереди
+    const m = msg.match(re);                                         // подходит ли шаблон к тексту?
+    if (m) return ru.replace(/\$(\d)/g, (_, n) => m[n]);             // да → подставляем найденные символы вместо $1, $2
+  }
+  return msg;                                                        // ничего не подошло — показываем оригинал
+}
+
+/* ---------- поле кода с подчёркиванием ошибок ---------- */
+
+// wrap — обёртка .code-wrap, ta — сам textarea, checkSyntax — включена ли подсветка в настройках
+function buildCodeBox(wrap, ta, checkSyntax) {
+  const back = $('.back-in', wrap), errBox = wrap.nextElementSibling;   // back — невидимый слой с копией текста; errBox — блок .err под полем
+  let seq = 0, timer = null, err = null;   // seq — номер запроса (чтобы игнорировать устаревшие ответы), timer — таймер задержки, err — текущая ошибка
+
+  // Перерисовывает невидимый слой и подпись с ошибкой
+  const paint = () => {
+    const v = ta.value;                    // текущий текст
+    let html = esc(v);                     // по умолчанию слой = просто текст (безопасно экранированный)
+    if (err) {                             // если есть ошибка — нужно найти кусок для подчёркивания
+      const lines = v.split('\n');                                          // строки кода
+      let ln = Math.min(err.line, lines.length) - 1, from, to;              // ln — индекс строки с ошибкой (с нуля), from/to — границы подчёркивания
+      if (err.line > lines.length || !lines[ln].trim()) {                   // ошибка «за концом кода» или на пустой строке
+        ln = lines.length - 1; while (ln > 0 && !lines[ln].trim()) ln--;    // берём последнюю непустую строку
+        from = lines[ln].length - lines[ln].trimStart().length; to = lines[ln].length;   // подчёркиваем её целиком без отступа
+      } else {
+        from = Math.max(0, (err.col || 1) - 1);                             // колонка начала ошибки (Python считает с 1, мы с 0)
+        // конец: если Python сообщил конец на той же строке — берём его, иначе до конца строки
+        to = err.end_line === err.line && err.end_col > err.col ? err.end_col - 1 : lines[ln].length;
+        // если «кусок» получился пустым или ошибка в самом конце строки — подчёркиваем всю строку, чтобы её было видно
+        if (to <= from || from >= lines[ln].length) { from = lines[ln].length - lines[ln].trimStart().length; to = lines[ln].length; }
+      }
+      const base = lines.slice(0, ln).reduce((n, l) => n + l.length + 1, 0);   // сколько символов лежит до начала нужной строки (+1 на каждый перенос)
+      const a = base + Math.min(from, lines[ln].length), b = base + Math.min(to, lines[ln].length);  // абсолютные позиции начала и конца в тексте
+      // если кусок всё равно пустой — подчёркивать нечего, просто показываем текст и сообщение
+      if (b <= a) { back.innerHTML = esc(v) + '\n'; errBox.textContent = `Строка ${err.line}: ${ruMsg(err.msg)}`; return; }
+      // собираем слой: текст до ошибки + <mark>кусок с ошибкой</mark> + текст после
+      html = esc(v.slice(0, a)) + '<mark>' + esc(v.slice(a, b)) + '</mark>' + esc(v.slice(b));
+    }
+    back.innerHTML = html + '\n';          // кладём в слой (лишний '\n' в конце нужен, чтобы высота слоя совпала с textarea)
+    back.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;   // сдвигаем слой на столько же, на сколько прокручен textarea
+    errBox.textContent = err ? `Строка ${err.line}: ${ruMsg(err.msg)}` : '';       // пишем сообщение под полем (или очищаем)
+  };
+
+  // Когда пользователь прокручивает textarea — прокручиваем невидимый слой так же, чтобы подчёркивание не отстало
+  ta.addEventListener('scroll', () => { back.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`; });
+
+  // Спрашивает у сервера, есть ли в коде синтаксическая ошибка
+  const run = async () => {
+    const my = ++seq;                                                       // номер этого запроса
+    if (!checkSyntax || !ta.value.trim()) { err = null; return paint(); }   // подсветка выключена или код пуст — ошибок нет
+    try {
+      const r = await api('/check', { method: 'POST', body: JSON.stringify({ code: ta.value }) });   // отправляем код на сервер
+      if (my === seq) { err = r.error; paint(); }                           // применяем ответ, только если за это время не отправили более новый запрос
+    } catch (e) {}                                                          // сеть упала — молчим, ничего страшного
+  };
+
+  // При каждом вводе символа:
+  ta.addEventListener('input', () => {
+    clearTimeout(timer);                   // отменяем ранее запланированную проверку
+    if (err) { err = null; }               // старая ошибка уже неактуальна — убираем подчёркивание сразу
+    paint();                               // перерисовываем слой
+    if (checkSyntax) timer = setTimeout(run, 600);   // проверим через 0.6 сек после последней нажатой клавиши (debounce — не спамим сервер)
+  });
+  paint();                                 // первая отрисовка при создании поля
+  if (checkSyntax && ta.value.trim()) run();   // если в поле уже есть текст (восстановленный черновик) — сразу проверяем
+}
+
+/* ---------- страница ученика ---------- */
+
+// Достаёт с сервера мою ранее отправленную работу. Секретный токен лежит в памяти браузера (localStorage).
+// Работы нет (или удалена) — вернёт null.
+async function loadMine() {
+  let t = '';
+  try { t = localStorage.getItem('mytoken') || ''; } catch (e) {}
+  if (!t) return null;                                                   // токена нет — я ещё ничего не сдавал
+  try { return await api('/mine', { method: 'POST', body: JSON.stringify({ token: t }) }); }
+  catch (e) {
+    if (e.status === 404) { try { localStorage.removeItem('mytoken'); } catch (e2) {} }   // работу удалили — токен больше не нужен
+    return null;
+  }
+}
+
+// edit — если передан, это режим ИСПРАВЛЕНИЯ: форма заполняется уже отправленной работой
+async function showStudent(edit) {
+  let config;
+  try { config = await api('/config'); }   // просим у сервера настройки: заголовок, задачи, галочки
+  catch (e) { app.innerHTML = '<div class="empty">Сервис временно недоступен</div>'; return; }   // сервер не ответил — показываем сообщение
+  document.title = config.title;           // ставим заголовок вкладки браузера
+
+  if (!edit) {                             // обычный заход: может, ученик уже сдавал работу?
+    const mine = await loadMine();
+    if (mine) return showStatus(mine, config);   // да — показываем экран статуса вместо пустой формы
+  }
+  const editing = !!edit;                  // true = исправляем уже отправленное
+  // Ключ для сохранения черновика: зависит от названий задач, чтобы черновики от разных наборов задач не путались
+  const draftKey = 'draft:' + JSON.stringify(config.tasks.map(t => t.title));
+  let draft = {};
+  if (!editing) { try { draft = JSON.parse(localStorage.getItem(draftKey) || '{}'); } catch (e) {} }   // достаём черновик (только при первой сдаче)
+  // Чем заполнить форму: при исправлении — тем, что отправлено; иначе — черновиком
+  const init = editing ? { first: edit.first, last: edit.last, answers: edit.answers.map(a => a.code) } : draft;
+  const label = !editing ? 'Отправить работу' : (edit.status === 'withdrawn' ? 'Сдать заново' : 'Сохранить изменения');
+  const lead = !editing ? 'Заполните имя и фамилию, вставьте код и отправьте работу.'
+    : (edit.status === 'withdrawn' ? 'Работа отозвана. Проверьте решение и сдайте её заново.'
+      : 'Исправьте решение и сохраните. Преподаватель увидит, что именно вы изменили.');
+
+  // Рисуем всю страницу одним куском HTML. ${...} — подстановка значений. esc() защищает от вредного текста
+  app.innerHTML = `
+    ${editing ? `<p class="lead">${lead}</p>` : ''}
+    <form id="form" autocomplete="off">
+      <div id="step1">
+        <h1>Регистрация</h1>
+        <div class="names">
+          <div><label for="first">Имя</label><input type="text" id="first" required maxlength="100"></div>
+          <div><label for="last">Фамилия</label><input type="text" id="last" required maxlength="100"></div>
+        </div>
+        <div class="actions"><button class="primary" id="next" type="submit">Продолжить</button></div>
+      </div>
+      <div id="step2" hidden>
+      <div class="who"><span id="who"></span><button type="button" class="linkbtn" id="back">Изменить</button></div>
+      ${config.tasks.map((t, i) => `
+        <section class="task">
+          <div class="task-head"><h2>${esc(t.title)}</h2></div>
+          ${t.text ? `<p class="task-text">${esc(t.text)}</p>` : ''}
+          <div class="code-wrap"><div class="back"><div class="back-in"></div></div>
+            <textarea data-i="${i}" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Код: ${esc(t.title)}"></textarea></div>
+          <div class="err"></div>
+        </section>`).join('')}
+      <div class="actions">
+        <button class="primary" id="send" type="submit">${label}</button>
+        ${editing ? '<button type="button" id="cancel">Отмена</button>' : ''}
+      </div>
+      <p class="msg" id="msg"></p>
+      </div>
+    </form>
+    ${editing ? '' : '<p class="foot"><a href="#/admin">Для преподавателя</a></p>'}`;
+  /* Пояснения к HTML выше:
+       required        — браузер не даст отправить форму с пустым полем
+       maxlength       — ограничение длины
+       config.tasks.map(...) — для КАЖДОЙ задачи создаём свой блок <section>; .join('') склеивает блоки в одну строку
+       spellcheck="false" и autocorrect="off" — выключаем красные «ошибки правописания» и автозамену в поле кода
+       <a href="#/admin"> — ссылка, которая меняет «решётку» в адресе, и JS показывает админку
+       кнопка «Отмена» есть только при исправлении: возвращает на экран статуса
+       Форма в два шага: #step1 — имя и фамилия, #step2 — задачи (скрыт атрибутом hidden, пока не нажали «Продолжить») */
+  // запускаем каскадное появление: заголовок, подпись, имя, каждая задача, кнопки и ссылка выезжают по очереди
+  reveal('#app > h1, #app > .lead, #app > .foot');   // заголовок, подпись и ссылка; поля шага выезжают ниже, когда шаг показан
+
+  $('#first').value = init.first || '';    // подставляем имя
+  $('#last').value = init.last || '';      // и фамилию
+  const areas = [...document.querySelectorAll('.code-wrap textarea')];   // все поля для кода как массив
+  areas.forEach((ta, i) => {
+    ta.value = (init.answers || [])[i] || '';             // подставляем код в i-е поле
+    if (config.autoindent) setupAutoIndent(ta);          // если админ включил автоотступ — подключаем умные клавиши
+    buildCodeBox(ta.parentElement, ta, config.syntax);   // подключаем подчёркивание ошибок (оно само проверит, включено ли)
+  });
+
+  // При любом вводе в форме сохраняем черновик в память браузера (только при первой сдаче) — не потеряется, если случайно закрыть вкладку
+  $('#form').addEventListener('input', () => {
+    if (editing) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({
+        first: $('#first').value, last: $('#last').value, answers: areas.map(a => a.value),
+      }));
+    } catch (e) {}                         // если браузер запретил хранение — не страшно
+  });
+
+  // ---- два шага: сначала имя и фамилия, потом задачи ----
+  let step = 1;                                                        // какой шаг сейчас показан
+  const replay = sel => {                                              // запускает каскадное появление заново (даже если уже было)
+    document.querySelectorAll(sel).forEach(el => el.classList.remove('rise'));
+    document.body.offsetWidth;                                         // заставляем браузер «забыть» старую анимацию
+    reveal(sel);
+  };
+  // Переключает шаг: animate=false — без плавного ухода старого шага (при первом показе)
+  const setStep = async (n, animate = true) => {
+    const from = $('#step' + step), to = $('#step' + n);
+    if (animate && !reduceMotion) { from.classList.add('fading'); await sleep(160); from.classList.remove('fading'); }   // старый шаг тает
+    step = n;
+    from.hidden = true; to.hidden = false;                             // прячем старый шаг, показываем новый
+    if (n === 2) $('#who').textContent = $('#first').value.trim() + ' ' + $('#last').value.trim();   // «Иван Петров» над задачами
+    replay('#step' + n + ' > *');                                      // блоки нового шага выезжают по очереди
+    if (n === 1) $('#first').focus(); else if (animate) areas[0].focus();   // курсор сразу в нужное поле
+  };
+  $('#back').onclick = () => setStep(1);                               // «Изменить» — вернуться к имени и фамилии
+  if (editing) { $('#step1').hidden = true; $('#step2').hidden = false; step = 2; $('#who').textContent = init.first + ' ' + init.last; replay('#step2 > *'); }   // при исправлении сразу показываем задачи
+  else { replay('#step1 > *'); }                                       // обычный вход — сначала имя и фамилия
+
+  if (editing) $('#cancel').onclick = () => go(() => showStudent());   // «Отмена» — назад на экран статуса
+
+  // Нажатие «Отправить работу» / «Сохранить изменения»
+  $('#form').addEventListener('submit', async e => {
+    e.preventDefault();                    // не даём браузеру перезагрузить страницу, отправим сами через JS
+    const btn = $('#send'), msg = $('#msg');
+    const first = $('#first').value.trim(), last = $('#last').value.trim();
+    msg.className = 'msg'; msg.textContent = '';
+    if (step === 1) {                                              // «Продолжить» (или Enter в поле имени) — идём к задачам
+      if (first && last) setStep(2);                               // имя и фамилия есть — показываем задачи
+      else { $(first ? '#last' : '#first').focus(); }              // иначе ставим курсор в пустое поле
+      return;
+    }
+    if (!first || !last) { msg.className = 'msg bad'; msg.textContent = 'Укажите имя и фамилию'; flash(msg); return; }
+
+    // ПОДТВЕРЖДЕНИЕ: показываем, что именно будет отправлено, и просим подтвердить
+    const filled = areas.filter(a => a.value.trim()).length;                                   // сколько задач заполнено
+    const empty = config.tasks.filter((t, i) => !areas[i].value.trim()).map(t => t.title);     // какие пустые
+    const html = `<p><b>${esc(first)} ${esc(last)}</b><br>Заполнено задач: ${filled} из ${areas.length}</p>`
+      + (empty.length ? `<p class="warn">Не заполнено: ${esc(empty.join(', '))}</p>` : '')
+      + `<p class="muted">${config.editable ? 'После отправки решение можно будет исправить или отозвать.' : 'После отправки изменить работу будет нельзя.'}</p>`;
+    const yes = await confirmDialog({
+      title: editing ? 'Сохранить изменения?' : 'Отправить работу?', html,
+      ok: editing ? 'Сохранить' : 'Отправить', cancel: 'Вернуться',
+    });
+    if (!yes) return;                      // передумал — остаёмся на форме
+
+    btn.disabled = true; btn.classList.add('loading');   // блокируем кнопку (чтобы не нажали дважды) и крутим индикатор
+    try {
+      const body = { first, last, answers: areas.map(a => a.value) };
+      if (editing) {
+        // исправление: отправляем новую версию вместе с секретным токеном
+        await api('/update', { method: 'POST', body: JSON.stringify({ ...body, token: localStorage.getItem('mytoken') }) });
+      } else {
+        const r = await api('/submit', { method: 'POST', body: JSON.stringify(body) });   // первая сдача — сервер вернёт токен
+        try { localStorage.setItem('mytoken', r.token); localStorage.removeItem(draftKey); } catch (e) {}   // запоминаем токен, черновик больше не нужен
+      }
+      const mine = await loadMine();       // подтягиваем актуальное состояние работы
+      await leave();                       // форма плавно исчезает
+      showStatus(mine, config, { fresh: true, note: editing ? 'Изменения сохранены' : null });   // экран «Готово»
+    } catch (err) {
+      msg.className = 'msg bad'; msg.textContent = err.message; flash(msg); btn.disabled = false; btn.classList.remove('loading');   // ошибка: показываем красным и снова включаем кнопку
+    }
+  });
+}
+
+// Экран «Ваша работа»: что отправлено, когда, сколько раз исправлялось; кнопки «Исправить» и «Отозвать»
+// fresh — только что отправили (тогда рисуем анимацию и конфетти), note — своя надпись вместо «Работа отправлена»
+function showStatus(mine, config, opts = {}) {
+  if (!mine) {                                                         // состояние не получили — показываем простое «Готово»
+    app.innerHTML = '<div class="done"><h2>Работа отправлена</h2><p class="muted">Можно закрыть страницу.</p></div>';
+    return;
+  }
+  const withdrawn = mine.status === 'withdrawn';
+  const title = withdrawn ? 'Работа отозвана' : (opts.note || 'Работа отправлена');
+  // Строка под заголовком: кто, когда сдал, когда менял, сколько раз исправлял
+  const meta = `${esc(mine.first)} ${esc(mine.last)} · отправлена ${fmtDate(mine.created)}`
+    + (mine.updated !== mine.created ? ` · изменена ${fmtDate(mine.updated)}` : '')
+    + (mine.edits ? ` · исправлена ${mine.edits} ${plural(mine.edits)}` : '');
+  // Значок: галочка (отправлена) или тире (отозвана). Линии «рисуются» анимацией (см. CSS .done .mark)
+  const icon = withdrawn ? '<path d="M17 26h18"/>' : '<path d="M15 27l8 8 14-16"/>';
+  // Кнопки: если исправлять разрешено — «Исправить»/«Отозвать» (или «Сдать заново», если уже отозвана)
+  const buttons = !config.editable ? '' : (withdrawn
+    ? '<button class="primary" id="redo">Сдать заново</button>'
+    : '<button class="primary" id="fix">Исправить решение</button><button class="danger" id="wd">Отозвать работу</button>');
+
+  app.innerHTML = `
+    <div class="done">
+      <div class="mark"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/>${icon}</svg></div>
+      <h2>${esc(title)}</h2>
+      <p class="muted meta">${meta}</p>
+      ${buttons ? `<div class="actions">${buttons}</div>` : ''}
+    </div>`;
+  reveal('.done > h2, .done > p, .done > .actions');                   // надписи и кнопки выезжают
+  if (opts.fresh && !withdrawn) burst($('.done .mark'));               // салют — только сразу после отправки
+
+  // «Исправить решение» / «Сдать заново» — открываем форму, заполненную отправленной работой
+  const open = () => go(() => showStudent(mine));
+  if ($('#fix')) $('#fix').onclick = open;
+  if ($('#redo')) $('#redo').onclick = open;
+  // «Отозвать работу» — спрашиваем подтверждение, потом сообщаем серверу
+  if ($('#wd')) $('#wd').onclick = async () => {
+    const yes = await confirmDialog({
+      title: 'Отозвать работу?',
+      html: '<p>Работа будет помечена как отозванная. Позже вы сможете проверить решение и сдать её заново.</p>',
+      ok: 'Отозвать', cancel: 'Вернуться', danger: true,
+    });
+    if (!yes) return;
+    try {
+      await api('/withdraw', { method: 'POST', body: JSON.stringify({ token: localStorage.getItem('mytoken') }) });
+      const fresh = await loadMine();
+      go(() => showStatus(fresh, config));                             // перерисовываем экран уже со статусом «отозвана»
+    } catch (err) { alert(err.message); }
+  };
+}
+
+/* ---------- админка: вход ---------- */
+
+function showLogin(error) {
+  // error — текст ошибки, который нужно показать (например, «Неверный пароль»)
+  app.innerHTML = `
+    <form id="login" class="login${error ? ' shake' : ''}">
+      <h1 style="font-size:28px">Вход</h1>
+      <p class="lead" style="margin-bottom:28px">Для преподавателя</p>
+      <label for="pw">Пароль</label>
+      <input type="password" id="pw" autofocus>
+      <p class="msg bad">${esc(error || '')}</p>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:8px">
+        <button class="primary" type="submit">Войти</button>
+        <a class="back-link" href="#/">назад</a>
+      </div>
+    </form>`;
+  if (!error) reveal('.login > *');   // при первом показе поля выезжают по очереди; при ошибке — форма трясётся (класс shake)
+  /* type="password" — вводимые символы скрыты точками; autofocus — курсор сразу в поле пароля */
+  $('#login').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      // отправляем пароль на сервер
+      const r = await api('/admin/login', { method: 'POST', body: JSON.stringify({ password: $('#pw').value }) });
+      token = r.token; sessionStorage.setItem('adm', token);   // получили токен — запоминаем (в переменную и в память вкладки)
+      go(() => showAdmin('answers'));                                      // открываем админку (с плавным переходом) на вкладке «Ответы»
+    } catch (err) { showLogin(err.message); }                    // не вышло — рисуем форму заново с текстом ошибки
+  });
+}
+
+// Превращает время из секунд (как хранит сервер) в красивую дату по-русски, например «1 октября, 19:30»
+const fmtDate = ts => new Date(ts * 1000).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+/* ---------- админка: каркас с вкладками ---------- */
+
+async function showAdmin(tab) {
+  // tab — какая вкладка открыта: 'answers' или 'settings'. Рисуем верхнюю панель и пустое место (#pane) под содержимое
+  app.innerHTML = `
+    <div class="bar">
+      <button class="tab ${tab === 'answers' ? 'active' : ''}" data-tab="answers">Ответы</button>
+      <button class="tab ${tab === 'settings' ? 'active' : ''}" data-tab="settings">Настройки</button>
+      <span class="spacer"></span>
+      <button class="out" id="logout">Выйти</button>
+    </div>
+    <div id="pane"><div class="empty">Загрузка…</div></div>`;
+  reveal('.bar');   // верхняя панель плавно появляется
+  // Клик по вкладке — открываем ту же админку с другой вкладкой (с плавным переходом)
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(() => showAdmin(b.dataset.tab)));
+  // «Выйти» — забываем токен и возвращаемся на главную
+  $('#logout').onclick = () => { token = ''; sessionStorage.removeItem('adm'); location.hash = '#/'; };
+  try {
+    if (tab === 'answers') await renderAnswers(); else await renderSettings();   // заполняем #pane нужным содержимым
+  } catch (err) {
+    // Если сервер ответил 401 — токен просрочился: выкидываем на экран входа
+    if (err.status === 401) { token = ''; sessionStorage.removeItem('adm'); showLogin('Сессия истекла'); }
+    else $('#pane').innerHTML = `<p class="msg bad">${esc(err.message)}</p>`;   // другая ошибка — просто показываем
+  }
+}
+
+/* ---------- админка: вкладка «Ответы» ---------- */
+
+// Собирает HTML блока «История изменений» для одной работы: что и когда менялось, с «До» и «После»
+function histHtml(s) {
+  if (!s.history.length) return '';                                    // работа не менялась — истории нет
+  let prev = null, out = '';                                           // prev — предыдущая версия работы (с кодом), с ней сравниваем
+  s.history.forEach(ev => {
+    const when = fmtDateTime(ev.t);                                    // время события до секунды
+    if (ev.type === 'sent') {                                          // первая запись: работа сдана
+      prev = ev;
+      out += `<div class="hev"><div class="hev-sum"><b>Сдана</b><span class="muted">${when}</span></div></div>`;
+      return;
+    }
+    if (ev.type === 'withdraw') {                                      // ученик отозвал работу (кода в записи нет)
+      out += `<div class="hev"><div class="hev-sum"><b>Отозвана учеником</b><span class="muted">${when}</span></div></div>`;
+      return;
+    }
+    // edit («Исправлено») или resend («Сдана заново» после отзыва): сравниваем с предыдущей версией
+    const parts = [];
+    if (prev && (prev.first !== ev.first || prev.last !== ev.last)) {  // менялись ли имя/фамилия
+      parts.push(`<p class="hev-name">Имя: <s>${esc(prev.last)} ${esc(prev.first)}</s> → <b>${esc(ev.last)} ${esc(ev.first)}</b></p>`);
+    }
+    const changed = [];                                                // названия задач, где код изменился
+    ev.answers.forEach((a, i) => {
+      const before = prev && prev.answers[i] ? prev.answers[i].code : '';   // код этой задачи ДО изменения
+      if (before === a.code) return;                                   // не изменился — пропускаем
+      changed.push(a.title);
+      const d = diffLines(before, a.code);                             // построчное сравнение «до» и «после»
+      parts.push(`
+        <div class="ans-head"><b>${esc(a.title)}</b></div>
+        <span class="cmp-l">До</span><pre class="answer">${renderDiff(d.A, d.del, 'del')}</pre>
+        <span class="cmp-l">После</span><pre class="answer">${renderDiff(d.B, d.add, 'add')}</pre>`);
+    });
+    const label = ev.type === 'resend' ? 'Сдана заново' : 'Исправлено';
+    const what = changed.length ? `изменено: ${esc(changed.join(', '))}` : 'код не менялся';
+    // <details> — стандартный «раскрывающийся» блок: клик по <summary> показывает/скрывает содержимое
+    out += `<details class="hev"><summary class="hev-sum"><b>${label}</b><span class="muted">${when}</span><span class="muted">${what}</span></summary><div class="hev-body">${parts.join('')}</div></details>`;
+    prev = ev;                                                         // эта версия — «предыдущая» для следующего события
+  });
+  return `<div class="hist"><div class="hist-title">История изменений</div>${out}</div>`;
+}
+
+async function renderAnswers() {
+  const subs = await api('/admin/submissions');   // получаем все сданные работы
+  const pane = $('#pane');
+  if (!subs.length) { pane.innerHTML = '<div class="empty">Пока никто ничего не сдал</div>'; return; }   // работ нет — так и пишем
+  pane.innerHTML = `
+    <input type="text" id="q" class="search" placeholder="Поиск по имени или фамилии">
+    <p class="muted count" id="count"></p>
+    <div id="list"></div>`;
+
+  // Метки возле фамилии: «отозвана» и «исправлено N раз»
+  const chips = s => (s.status === 'withdrawn' ? '<span class="chip off">отозвана</span>' : '')
+    + (s.edits ? `<span class="chip edit">исправлено ${s.edits} ${plural(s.edits)}</span>` : '');
+
+  // Рисует список работ с учётом поиска
+  const draw = () => {
+    const q = $('#q').value.trim().toLowerCase();                                                   // что ввели в поиск
+    const shown = subs.filter(s => (s.first + ' ' + s.last).toLowerCase().includes(q));            // оставляем работы, где имя+фамилия содержат запрос
+    const open = new Set([...document.querySelectorAll('.sub.open')].map(n => n.dataset.id));      // запоминаем, какие работы были раскрыты, чтобы не «схлопнулись» при поиске/удалении
+    $('#count').textContent = `Работ: ${shown.length}`;
+    $('#list').innerHTML = shown.map(s => `
+      <div class="sub ${open.has(String(s.id)) ? 'open' : ''}" data-id="${s.id}">
+        <div class="sub-head"><span class="name">${esc(s.last)} ${esc(s.first)}</span>${chips(s)}<span class="muted">${s.updated !== s.created ? 'изм. ' + fmtDate(s.updated) : fmtDate(s.created)}</span><span class="arrow">›</span></div>
+        <div class="sub-body"><div class="sub-in"><div class="sub-pad">
+          ${s.answers.map((a, i) => `
+            <div class="ans-head"><b>${esc(a.title)}</b><button class="small" data-copy="${s.id}:${i}">Копировать</button></div>
+            <pre class="answer">${a.code.trim() ? esc(a.code) : '<span class="muted">(пусто)</span>'}</pre>`).join('')}
+          ${histHtml(s)}
+          <p style="margin:18px 0 0"><button class="small danger" data-del="${s.id}">Удалить работу</button></p>
+        </div></div></div>
+      </div>`).join('');
+    /* data-copy="id:номер" и data-del="id" — «метки» на кнопках: по ним ниже понимаем, что именно нажали.
+       Выше показан ТЕКУЩИЙ код ученика, а под ним — история изменений (если работа менялась) */
+  };
+  draw();                                          // первый раз рисуем весь список
+  reveal('#q, #count, .sub');   // поиск, счётчик и карточки работ выезжают каскадом
+  $('#q').addEventListener('input', draw);         // при вводе в поиск — перерисовываем
+
+  // Один обработчик кликов на весь список (так проще, чем вешать на каждую кнопку; называется «делегирование событий»)
+  pane.addEventListener('click', async e => {
+    if (e.target.closest('details')) return;       // клики внутри истории (раскрытие <details>) не трогаем
+    const head = e.target.closest('.sub-head');    // кликнули по строке с фамилией?
+    if (head) { head.parentElement.classList.toggle('open'); return; }   // раскрыть/свернуть работу (CSS сам покажет/скроет тело)
+    const cp = e.target.closest('[data-copy]');    // кликнули «Копировать»?
+    if (cp) {
+      const [id, i] = cp.dataset.copy.split(':');  // из метки «15:0» достаём id работы и номер задачи
+      // копируем код в буфер обмена и меняем надпись на кнопке
+      try { await navigator.clipboard.writeText(subs.find(s => s.id == id).answers[i].code); cp.textContent = 'Скопировано'; cp.classList.add('pulse'); } catch (err) {}
+      setTimeout(() => { cp.textContent = 'Копировать'; cp.classList.remove('pulse'); }, 1200);   // через 1.2 сек возвращаем прежнюю надпись
+    }
+    const del = e.target.closest('[data-del]');    // кликнули «Удалить работу»?
+    if (del) {
+      const sub = subs.find(s => s.id == del.dataset.del);
+      const yes = await confirmDialog({            // красивое окно подтверждения вместо стандартного
+        title: 'Удалить работу?',
+        html: `<p><b>${esc(sub.last)} ${esc(sub.first)}</b> — работа и вся история изменений будут удалены безвозвратно.</p>`,
+        ok: 'Удалить', cancel: 'Отмена', danger: true,
+      });
+      if (!yes) return;
+      await api('/admin/submissions/' + del.dataset.del, { method: 'DELETE' });         // просим сервер удалить
+      // Анимация удаления: фиксируем текущую высоту карточки, затем плавно схлопываем её в ноль (CSS .sub.removing)
+      const card = del.closest('.sub');
+      card.style.maxHeight = card.offsetHeight + 'px';
+      card.offsetHeight;                          // заставляем браузер «запомнить» стартовую высоту
+      card.classList.add('removing');             // прозрачность и сдвиг вправо
+      card.style.maxHeight = '0px';               // схлопывание по высоте
+      await sleep(380);                           // ждём окончания анимации
+      subs.splice(subs.findIndex(s => s.id == del.dataset.del), 1);                      // убираем работу и из локального списка
+      draw();                                                                            // перерисовываем
+    }
+  });
+}
+
+/* ---------- админка: вкладка «Настройки» ---------- */
+
+async function renderSettings() {
+  const cfg = await api('/config');   // берём текущие настройки
+  const pane = $('#pane');
+  pane.innerHTML = `
+    <form id="cfg">
+      <div class="field">
+        <label for="c-title">Заголовок страницы</label>
+        <input type="text" id="c-title" maxlength="120">
+      </div>
+      <label class="check"><input type="checkbox" id="c-auto"><span>Автоотступ</span></label>
+      <label class="check"><input type="checkbox" id="c-syntax"><span>Подсвечивать синтаксические ошибки<small>Ошибка в коде подчёркивается волнистой линией прямо при вводе (Python)</small></span></label>
+      <label class="check"><input type="checkbox" id="c-edit"><span>Можно исправлять и отзывать работу<small>После отправки ученик сможет изменить решение или отозвать работу; вы увидите, что и когда менялось</small></span></label>
+      <h2 style="margin:40px 0 6px">Задачи</h2>
+      <p class="muted" style="margin:0 0 16px;font-size:14px">Для каждой задачи на странице будет своё поле для кода.</p>
+      <div id="tasks"></div>
+      <button type="button" id="add" class="small">+ Добавить задачу</button>
+      <div style="margin-top:36px"><button class="primary" type="submit">Сохранить</button></div>
+      <p class="msg" id="msg"></p>
+    </form>`;
+  // Значения в поля ставим через JS (а не в HTML-строке) — так безопаснее для любых символов
+  $('#c-title').value = cfg.title;
+  $('#c-auto').checked = cfg.autoindent;       // галочка автоотступа
+  $('#c-edit').checked = cfg.editable;         // галочка «можно исправлять и отзывать»
+  $('#c-syntax').checked = cfg.syntax;         // галочка подсветки ошибок
+  const tasks = cfg.tasks.map(t => ({ ...t })); // копия списка задач — правим копию, а на сервер отправим только по кнопке «Сохранить»
+
+  // Рисует редактор списка задач
+  const draw = (pop = -1) => {   // pop — номер только что добавленной задачи (она «выпрыгнет»)
+    $('#tasks').innerHTML = tasks.map((t, i) => `
+      <div class="task-edit${i === pop ? ' pop' : ''}">
+        <div class="top">
+          <input type="text" data-f="title" data-i="${i}" maxlength="120" value="${esc(t.title)}" aria-label="Название задачи">
+          <button type="button" class="small" data-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="small" data-down="${i}" ${i === tasks.length - 1 ? 'disabled' : ''}>↓</button>
+          <button type="button" class="small danger" data-rm="${i}" ${tasks.length === 1 ? 'disabled' : ''}>Удалить</button>
+        </div>
+        <textarea class="plain" data-f="text" data-i="${i}" rows="3" placeholder="Условие (необязательно)">${esc(t.text)}</textarea>
+      </div>`).join('');
+    /* data-f — какое поле задачи правит этот input (title или text), data-i — номер задачи.
+       Кнопка ↑ отключена у первой задачи, ↓ у последней, «Удалить» — если задача единственная */
+  };
+  draw();
+  reveal('#cfg > *:not(#tasks), .task-edit');   // поля настроек и карточки задач выезжают каскадом
+
+  // Когда админ печатает в названии/условии — сразу обновляем нужное поле нужной задачи в массиве
+  $('#tasks').addEventListener('input', e => { const f = e.target.dataset.f; if (f) tasks[e.target.dataset.i][f] = e.target.value; });
+
+  // Клики по кнопкам ↑ ↓ «Удалить»
+  $('#tasks').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const d = b.dataset;
+    if (d.rm !== undefined) tasks.splice(+d.rm, 1);                                                          // удалить задачу с номером rm
+    else if (d.up !== undefined) [tasks[+d.up - 1], tasks[+d.up]] = [tasks[+d.up], tasks[+d.up - 1]];       // поменять местами с предыдущей
+    else if (d.down !== undefined) [tasks[+d.down + 1], tasks[+d.down]] = [tasks[+d.down], tasks[+d.down + 1]];  // поменять местами со следующей
+    draw();                                                                                                  // перерисовать список
+  });
+
+  // «+ Добавить задачу» — новая задача с названием «Задача N»
+  $('#add').onclick = () => { tasks.push({ title: 'Задача ' + (tasks.length + 1), text: '' }); draw(tasks.length - 1); };
+
+  // «Сохранить» — отправляем настройки на сервер
+  $('#cfg').addEventListener('submit', async e => {
+    e.preventDefault();
+    const msg = $('#msg');
+    try {
+      await api('/admin/config', { method: 'POST', body: JSON.stringify({
+        title: $('#c-title').value, autoindent: $('#c-auto').checked, syntax: $('#c-syntax').checked, editable: $('#c-edit').checked, tasks,
+      })});
+      msg.className = 'msg'; msg.textContent = 'Сохранено'; flash(msg);
+    } catch (err) { msg.className = 'msg bad'; msg.textContent = err.message; }
+  });
+}
+
+/* ---------- роутинг: какую «страницу» показать ---------- */
+
+function route() {
+  // location.hash — часть адреса после «#». Если там '#/admin' — показываем админку (или вход, если токена нет)
+  go(() => {                                 // go = плавно убрать старую страницу, потом нарисовать новую
+    if (location.hash === '#/admin') { token ? showAdmin('answers') : showLogin(); }
+    else showStudent();                      // иначе — страница ученика
+  });
+}
+addEventListener('hashchange', route);       // когда «хвост» адреса меняется (клик по ссылке «Для преподавателя») — перерисовываем
+route();                                     // и один раз запускаем при загрузке страницы
+</script>
+</body>
+</html>
